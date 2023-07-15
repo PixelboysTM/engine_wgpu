@@ -1,6 +1,8 @@
+pub(crate) mod assets;
 mod renderer;
+mod scene;
 
-use std::time::Duration;
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use wgpu::util::DeviceExt;
 use winit::{
@@ -11,9 +13,15 @@ use winit::{
 
 pub(crate) use renderer::texture::*;
 
-use self::renderer::{
-    model::{load_model, Model},
-    Instance, Renderer,
+use crate::app::scene::{component::MeshFilter, SceneObject};
+
+use self::{
+    assets::AssetHandle,
+    renderer::{
+        model::{load_model, Model},
+        Renderer,
+    },
+    scene::Scene,
 };
 use cgmath::prelude::*;
 
@@ -23,9 +31,8 @@ pub struct ApplicationState {
     renderer: Renderer,
     size: winit::dpi::PhysicalSize<u32>,
     window: Window,
-    obj_model: Model,
-    instances: Vec<Instance>,
-    instance_buffer: wgpu::Buffer,
+    scene: Scene,
+    // obj_model: Model,
 }
 
 impl ApplicationState {
@@ -34,50 +41,68 @@ impl ApplicationState {
 
         let renderer = Renderer::new(&window, size).await;
 
-        let obj_model = load_model("cube.obj", renderer.device(), renderer.queue())
+        let mut obj_model = load_model("cube.obj", renderer.device(), renderer.queue())
             .await
             .unwrap();
 
-        const SPACE_BETWEEN: f32 = 3.0;
-        let instances = (0..NUM_INSTANCES_PER_ROW)
-            .flat_map(|z| {
-                (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
-                    let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+        // const SPACE_BETWEEN: f32 = 3.0;
+        // let instances = (0..NUM_INSTANCES_PER_ROW)
+        //     .flat_map(|z| {
+        //         (0..NUM_INSTANCES_PER_ROW).map(move |x| {
+        //             let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+        //             let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
 
-                    let position = cgmath::Vector3 { x, y: 0.0, z };
+        //             let position = cgmath::Vector3 { x, y: 0.0, z };
 
-                    let rotation = if position.is_zero() {
-                        cgmath::Quaternion::from_axis_angle(
-                            cgmath::Vector3::unit_z(),
-                            cgmath::Deg(0.0),
-                        )
-                    } else {
-                        cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
-                    };
+        //             let rotation = if position.is_zero() {
+        //                 cgmath::Quaternion::from_axis_angle(
+        //                     cgmath::Vector3::unit_z(),
+        //                     cgmath::Deg(0.0),
+        //                 )
+        //             } else {
+        //                 cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
+        //             };
 
-                    Instance { position, rotation }
-                })
-            })
-            .collect::<Vec<_>>();
+        //             Instance { position, rotation }
+        //         })
+        //     })
+        //     .collect::<Vec<_>>();
 
-        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-        let instance_buffer =
-            renderer
-                .device()
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Instance Buffer"),
-                    contents: bytemuck::cast_slice(&instance_data),
-                    usage: wgpu::BufferUsages::VERTEX,
-                });
+        // let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+
+        let scene = Scene::new("Test Scene");
+        let root = scene.root();
+        root.add_child(SceneObject::new("SceneObject 1"));
+        root.add_child(SceneObject::new("SceneObject 2"));
+        root.add_child(SceneObject::new("SceneObject 3"));
+        let obj = SceneObject::new("SceneObject 4");
+        obj.add_child(SceneObject::new("Child 1"));
+        let obj2 = SceneObject::new("Child 2");
+        obj2.add_child(SceneObject::new("Subchild 1"));
+        obj2.add_child(SceneObject::new("Subchild 2"));
+        obj2.add_child(SceneObject::new("Subchild 3"));
+        obj.add_child(obj2);
+        obj.add_child(SceneObject::new("Child 3"));
+        obj.add_child(SceneObject::new("Child 4"));
+        root.add_child(obj);
+        root.add_component(MeshFilter::with_material(
+            AssetHandle {
+                asset: Rc::new(RefCell::new(obj_model.meshes.pop().unwrap())),
+            },
+            obj_model.materials.pop().unwrap(),
+        ));
+
+        let yml = serde_yaml::to_string(&scene).unwrap();
+        // println!("{}", yml);
 
         Self {
             renderer,
             size,
             window,
-            obj_model,
-            instances,
-            instance_buffer,
+            // obj_model,
+            // instances,
+            // instance_buffer,
+            scene,
         }
     }
 
@@ -101,15 +126,11 @@ impl ApplicationState {
     }
 
     pub(super) fn update(&mut self, dt: Duration) {
-        self.renderer.update(dt, &self.window);
+        self.renderer.update(dt, &self.window, &self.scene);
     }
 
     pub(super) fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        self.renderer.render(
-            &mut self.obj_model,
-            self.instance_buffer.slice(..),
-            0..self.instances.len() as _,
-        )
+        self.renderer.render(&self.scene)
     }
 
     pub(super) fn size(&self) -> &PhysicalSize<u32> {

@@ -6,6 +6,8 @@ use std::{
 use anyhow::Ok;
 use wgpu::util::DeviceExt;
 
+use crate::app::assets::AssetHandle;
+
 use super::{mesh::MeshVertex, texture::Texture};
 
 pub struct Model {
@@ -26,58 +28,59 @@ pub struct Mesh {
     pub material: usize,
 }
 
-pub trait DrawModel<'a> {
-    fn draw_model(
-        &mut self,
-        device: &wgpu::Device,
-        bind_group_layout: &wgpu::BindGroupLayout,
-        mesh: &'a Mesh,
-        material: &'a mut Material,
-    );
-    fn draw_mesh_instanced(
-        &mut self,
-        device: &wgpu::Device,
-        bind_group_layout: &wgpu::BindGroupLayout,
-        mesh: &'a Mesh,
-        material: &'a mut Material,
-        instances: Range<u32>,
-    );
-}
+// pub trait DrawModel<'a> {
+//     fn draw_model(
+//         &mut self,
+//         device: &wgpu::Device,
+//         bind_group_layout: &wgpu::BindGroupLayout,
+//         mesh: AssetHandle<Mesh>,
+//         material: &'a mut Material,
+//     );
+//     fn draw_mesh_instanced(
+//         &mut self,
+//         device: &wgpu::Device,
+//         bind_group_layout: &wgpu::BindGroupLayout,
+//         mesh: AssetHandle<Mesh>,
+//         material: &'a mut Material,
+//         instances: Range<u32>,
+//     );
+// }
 
-impl<'a, 'b> DrawModel<'b> for wgpu::RenderBundleEncoder<'a>
-where
-    'b: 'a,
-{
-    fn draw_model(
-        &mut self,
-        device: &wgpu::Device,
-        bind_group_layout: &wgpu::BindGroupLayout,
-        mesh: &'b Mesh,
-        material: &'a mut Material,
-    ) {
-        self.draw_mesh_instanced(device, bind_group_layout, mesh, material, 0..1);
-    }
+// impl<'a, 'b> DrawModel<'b> for wgpu::RenderBundleEncoder<'a>
+// where
+//     'b: 'a,
+// {
+//     fn draw_model(
+//         &mut self,
+//         device: &wgpu::Device,
+//         bind_group_layout: &wgpu::BindGroupLayout,
+//         mesh: AssetHandle<Mesh>,
+//         material: &'a mut Material,
+//     ) {
+//         self.draw_mesh_instanced(device, bind_group_layout, mesh, material, 0..1);
+//     }
 
-    fn draw_mesh_instanced(
-        &mut self,
-        device: &wgpu::Device,
-        bind_group_layout: &wgpu::BindGroupLayout,
-        mesh: &'b Mesh,
-        material: &'a mut Material,
-        instances: Range<u32>,
-    ) {
-        self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-        self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        self.set_bind_group(
-            0,
-            material
-                .diffuse_texture
-                .bind_group(device, bind_group_layout),
-            &[],
-        );
-        self.draw_indexed(0..mesh.num_elements, 0, instances);
-    }
-}
+//     fn draw_mesh_instanced(
+//         &mut self,
+//         device: &wgpu::Device,
+//         bind_group_layout: &wgpu::BindGroupLayout,
+//         mesh: AssetHandle<Mesh>,
+//         material: &'a mut Material,
+//         instances: Range<u32>,
+//     ) {
+//         let mesh = mesh.asset.borrow();
+//         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+//         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+//         self.set_bind_group(
+//             0,
+//             material
+//                 .diffuse_texture
+//                 .bind_group(device, bind_group_layout),
+//             &[],
+//         );
+//         self.draw_indexed(0..mesh.num_elements, 0, instances);
+//     }
+// }
 
 pub async fn load_model(
     file_name: &str,

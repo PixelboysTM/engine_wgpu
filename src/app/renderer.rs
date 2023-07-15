@@ -1,18 +1,23 @@
 mod camera;
-mod mesh;
+pub mod mesh;
 pub(crate) mod model;
-mod pipeline;
+pub mod pipeline;
 pub(crate) mod texture;
 
 use std::{ops::Range, time::Duration};
 
-use wgpu::{ColorTargetState, Device, Queue};
+use wgpu::{util::DeviceExt, ColorTargetState, Device, Queue};
 use winit::{dpi::PhysicalSize, event::Event, window::Window};
 
 #[cfg(feature = "imgui")]
 use crate::gui::{init_gui, Gui, GuiPlatform};
 
 use self::{camera::Camera, mesh::Vertex, model::Model, pipeline::Pipeline};
+
+use super::scene::{
+    component::{Component, MeshFilter, Transform},
+    Scene, SceneObject,
+};
 
 pub struct Renderer {
     surface: wgpu::Surface,
@@ -22,6 +27,7 @@ pub struct Renderer {
     render_pipeline: Pipeline,
     camera: Camera,
     depth_texture: texture::Texture,
+    instance_buffer: wgpu::Buffer,
     #[cfg(feature = "imgui")]
     gui: Gui,
     gui_platform: GuiPlatform,
@@ -119,6 +125,13 @@ impl Renderer {
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
+        let instance_data = [Transform::new().to_raw()];
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Instance Buffer"),
+            contents: bytemuck::cast_slice(&instance_data),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+
         #[cfg(feature = "imgui")]
         let (gui, gui_platform) = init_gui(window, &config.format, &device, &queue);
 
@@ -131,6 +144,7 @@ impl Renderer {
             render_pipeline,
             camera,
             depth_texture,
+            instance_buffer,
             #[cfg(feature = "imgui")]
             gui,
             #[cfg(feature = "imgui")]
@@ -150,13 +164,16 @@ impl Renderer {
         );
     }
 
-    pub(super) fn update(&mut self, dt: Duration, window: &Window) {
+    pub(super) fn update(&mut self, dt: Duration, window: &Window, scene: &Scene) {
         //GUI
         {
             let ui = self.gui.update(dt, window, &mut self.gui_platform);
 
             let mut open = true;
+            ui.dockspace_over_main_viewport();
             ui.show_demo_window(&mut open);
+
+            scene.gui(ui);
 
             self.gui_platform.end_frame(ui, window);
         }
@@ -168,12 +185,7 @@ impl Renderer {
             .handle_event(self.gui.io_mut(), window, event);
     }
 
-    pub(super) fn render(
-        &mut self,
-        object: &mut Model,
-        instance_buffer: wgpu::BufferSlice,
-        instances: Range<u32>,
-    ) -> Result<(), wgpu::SurfaceError> {
+    pub(super) fn render(&mut self, scene: &Scene) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -184,14 +196,22 @@ impl Renderer {
                 label: Some("Render Encoder"),
             });
         {
-            let bundle = self.render_pipeline.draw(
+            let bundles = self.render_pipeline.draw(
+                scene,
                 &self.device,
-                &[self.camera.bind_group()],
-                &[instance_buffer],
-                &object.meshes[0],
-                &mut object.materials[object.meshes[0].material],
-                instances,
+                &self.queue,
+                &self.instance_buffer,
+                &[&self.camera.bind_group()],
             );
+
+            // let bundle = self.render_pipeline.draw(
+            //     &self.device,
+            //     &[self.camera.bind_group()],
+            //     &[],
+            //     &object.meshes[0],
+            //     &mut object.materials[object.meshes[0].material],
+            //     0..1,
+            // );
 
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -218,7 +238,7 @@ impl Renderer {
                 }),
             });
 
-            render_pass.execute_bundles(std::iter::once(&bundle));
+            render_pass.execute_bundles(&bundles);
 
             //GUI
             {
@@ -242,55 +262,17 @@ impl Renderer {
     }
 }
 
-pub(super) struct Instance {
-    pub(super) position: cgmath::Vector3<f32>,
-    pub(super) rotation: cgmath::Quaternion<f32>,
-}
+// pub(super) struct Instance {
+//     pub(super) position: cgmath::Vector3<f32>,
+//     pub(super) rotation: cgmath::Quaternion<f32>,
+// }
 
-impl Instance {
-    pub(super) fn to_raw(&self) -> InstanceRaw {
-        InstanceRaw {
-            model: (cgmath::Matrix4::from_translation(self.position)
-                * cgmath::Matrix4::from(self.rotation))
-            .into(),
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub(super) struct InstanceRaw {
-    pub(super) model: [[f32; 4]; 4],
-}
-
-impl Vertex for InstanceRaw {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        use std::mem;
-        wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 10,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 11,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                    shader_location: 12,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
-                    shader_location: 13,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-            ],
-        }
-    }
-}
+// impl Instance {
+//     pub(super) fn to_raw(&self) -> TranslationRaw {
+//         TranslationRaw {
+//             model: (cgmath::Matrix4::from_translation(self.position)
+//                 * cgmath::Matrix4::from(self.rotation))
+//             .into(),
+//         }
+//     }
+// }

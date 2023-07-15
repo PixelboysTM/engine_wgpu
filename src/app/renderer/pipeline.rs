@@ -1,21 +1,23 @@
-use std::ops::Range;
-
 use wgpu::{
-    BindGroupLayout, BufferSlice, ColorTargetState, Device, Queue, RenderBundle, TextureFormat,
+    BindGroupLayout, ColorTargetState, Device, Queue, RenderBundle, RenderBundleEncoder,
+    TextureFormat,
+};
+
+use crate::app::scene::{
+    component::{Component, MeshFilter, TranslationRaw},
+    Scene, SceneObject,
 };
 
 use super::{
     mesh::{MeshVertex, Vertex},
-    model::{DrawModel, Material, Mesh},
     texture::Texture,
-    InstanceRaw,
 };
 
 pub struct Pipeline {
-    pipeline: wgpu::RenderPipeline,
-    name: String,
-    color_formats: Vec<Option<TextureFormat>>,
-    texture_bind_group_layout: wgpu::BindGroupLayout,
+    pub(crate) pipeline: wgpu::RenderPipeline,
+    pub(crate) name: String,
+    pub(crate) color_formats: Vec<Option<TextureFormat>>,
+    pub(crate) texture_bind_group_layout: wgpu::BindGroupLayout,
     diffuse_texture: Texture,
 }
 
@@ -72,7 +74,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[MeshVertex::desc(), InstanceRaw::desc()],
+                buffers: &[MeshVertex::desc(), TranslationRaw::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -121,51 +123,48 @@ impl Pipeline {
 
     pub(super) fn draw(
         &mut self,
+        scene: &Scene,
         device: &Device,
+        queue: &Queue,
+        instance_buffer: &wgpu::Buffer,
         bind_groups: &[&wgpu::BindGroup],
-        vertex_buffers: &[BufferSlice],
-        mesh: &Mesh,
-        material: &mut Material,
-        instances: Range<u32>,
-    ) -> RenderBundle {
-        let mut encoder =
-            device.create_render_bundle_encoder(&wgpu::RenderBundleEncoderDescriptor {
-                label: Some(&format!("Render Bundle Encoder: {}", self.name)),
-                color_formats: &self.color_formats,
-                depth_stencil: Some(wgpu::RenderBundleDepthStencil {
-                    format: Texture::DEPTH_FORMAT,
-                    depth_read_only: false,
-                    stencil_read_only: false,
-                }),
-                sample_count: 1,
-                multiview: None,
-            });
+    ) -> Vec<RenderBundle> {
+        self.render_scene_obj(scene.root(), device, queue, bind_groups, instance_buffer)
+    }
 
-        encoder.set_pipeline(&self.pipeline);
-        // encoder.set_bind_group(
-        //     0,
-        //     self.diffuse_texture
-        //         .bind_group(device, &self.texture_bind_group_layout),
-        //     &[],
-        // );
-        for (i, group) in bind_groups.iter().enumerate() {
-            // +1 because 0 is DiffuseBindGroup
-            encoder.set_bind_group(i as u32 + 1, &group, &[]);
+    fn render_scene_obj(
+        &self,
+        obj: SceneObject,
+        device: &Device,
+        queue: &Queue,
+        bind_groups: &[&wgpu::BindGroup],
+        instance_buffer: &wgpu::Buffer,
+    ) -> Vec<RenderBundle> {
+        let mut bundles = vec![];
+        let mf = obj.get_component(MeshFilter::IDENT);
+        if let Some(mesh_filter) = mf {
+            let mfc: &mut Component = &mut mesh_filter.get().borrow_mut();
+            match mfc {
+                Component::MeshFilter(filter) => {
+                    let b = filter.render(self, device, bind_groups, instance_buffer, queue);
+                    if let Some(b) = b {
+                        bundles.push(b);
+                    }
+                }
+                _ => panic!("Darf nicht sein"),
+            }
         }
-        for (i, slice) in vertex_buffers.iter().enumerate() {
-            // +1 becaise 0 is Vertex data from model
-            encoder.set_vertex_buffer(i as u32 + 1, *slice);
-        }
-        encoder.draw_mesh_instanced(
-            device,
-            &self.texture_bind_group_layout,
-            mesh,
-            material,
-            instances,
-        );
 
-        encoder.finish(&wgpu::RenderBundleDescriptor {
-            label: Some(&format!("Render Bundle: {}", self.name)),
-        })
+        for child in obj.children() {
+            bundles.append(&mut self.render_scene_obj(
+                child,
+                device,
+                queue,
+                bind_groups,
+                instance_buffer,
+            ));
+        }
+
+        bundles
     }
 }
