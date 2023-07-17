@@ -99,7 +99,7 @@ impl Renderer {
 
         let camera = Camera::new(
             &device,
-            (0.0, 5.0, -10.0),
+            (0.0, 5.0, 10.0),
             (0.0, 0.0, 0.0),
             cgmath::Vector3::unit_y(),
             config.width as f32 / config.height as f32,

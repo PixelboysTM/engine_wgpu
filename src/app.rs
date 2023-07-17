@@ -4,7 +4,6 @@ mod scene;
 
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
-use wgpu::util::DeviceExt;
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -23,9 +22,6 @@ use self::{
     },
     scene::Scene,
 };
-use cgmath::prelude::*;
-
-const NUM_INSTANCES_PER_ROW: u32 = 10;
 
 pub struct ApplicationState {
     renderer: Renderer,
@@ -81,16 +77,17 @@ impl ApplicationState {
         obj2.add_child(SceneObject::new("Subchild 1"));
         obj2.add_child(SceneObject::new("Subchild 2"));
         obj2.add_child(SceneObject::new("Subchild 3"));
-        obj.add_child(obj2);
-        obj.add_child(SceneObject::new("Child 3"));
-        obj.add_child(SceneObject::new("Child 4"));
-        root.add_child(obj);
-        root.add_component(MeshFilter::with_material(
+
+        obj2.add_component(MeshFilter::with_material(
             AssetHandle {
                 asset: Rc::new(RefCell::new(obj_model.meshes.pop().unwrap())),
             },
             obj_model.materials.pop().unwrap(),
         ));
+        obj.add_child(obj2);
+        obj.add_child(SceneObject::new("Child 3"));
+        obj.add_child(SceneObject::new("Child 4"));
+        root.add_child(obj);
 
         let yml = serde_yaml::to_string(&scene).unwrap();
         // println!("{}", yml);
