@@ -1,4 +1,5 @@
 mod camera;
+mod framebuffer;
 pub mod mesh;
 pub(crate) mod model;
 pub mod pipeline;
@@ -6,13 +7,14 @@ pub(crate) mod texture;
 
 use std::time::Duration;
 
+use imgui::TextureId;
 use wgpu::{util::DeviceExt, ColorTargetState, Device, Queue};
 use winit::{dpi::PhysicalSize, event::Event, window::Window};
 
 #[cfg(feature = "imgui")]
 use crate::gui::{init_gui, Gui, GuiPlatform};
 
-use self::{camera::Camera, pipeline::Pipeline};
+use self::{camera::Camera, framebuffer::Framebuffer, pipeline::Pipeline};
 
 use super::scene::{component::Transform, Scene};
 
@@ -23,6 +25,9 @@ pub struct Renderer {
     config: wgpu::SurfaceConfiguration,
     render_pipeline: Pipeline,
     camera: Camera,
+    framebuffer: Framebuffer,
+    framebuffer_gui_id: TextureId,
+    gui_viewport_size: [u32; 2],
     depth_texture: texture::Texture,
     instance_buffer: wgpu::Buffer,
     #[cfg(feature = "imgui")]
@@ -120,6 +125,7 @@ impl Renderer {
 
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+        let framebuffer = Framebuffer::create(&device, 800, 600, config.format, "Main");
 
         let instance_data = [Transform::new().to_raw()];
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -129,7 +135,8 @@ impl Renderer {
         });
 
         #[cfg(feature = "imgui")]
-        let (gui, gui_platform) = init_gui(window, &config.format, &device, &queue);
+        let (mut gui, gui_platform) = init_gui(window, &config.format, &device, &queue);
+        let framebuffer_gui_id = gui.insert_texture(&device, framebuffer.diffuse());
 
         Self {
             surface,
@@ -139,12 +146,15 @@ impl Renderer {
 
             render_pipeline,
             camera,
+            framebuffer,
+            framebuffer_gui_id,
             depth_texture,
             instance_buffer,
             #[cfg(feature = "imgui")]
             gui,
             #[cfg(feature = "imgui")]
             gui_platform,
+            gui_viewport_size: [0; 2],
         }
     }
 
@@ -154,10 +164,10 @@ impl Renderer {
         self.surface.configure(&self.device, &self.config);
         self.depth_texture =
             texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
-        self.camera.update_aspect(
-            &self.queue,
-            self.config.width as f32 / self.config.height as f32,
-        );
+        // self.camera.update_aspect(
+        //     &self.queue,
+        //     self.config.width as f32 / self.config.height as f32,
+        // );
     }
 
     pub(super) fn update(&mut self, dt: Duration, window: &Window, scene: &Scene) {
@@ -165,9 +175,21 @@ impl Renderer {
         {
             let ui = self.gui.update(dt, window, &mut self.gui_platform);
 
-            let mut open = true;
+            let mut open: bool = true;
             ui.dockspace_over_main_viewport();
             ui.show_demo_window(&mut open);
+
+            //Viewport
+            {
+                let _token = ui.push_style_var(imgui::StyleVar::WindowPadding([0.0, 0.0]));
+                if let Some(_) = ui.window("Viewport").begin() {
+                    let size = ui.content_region_avail();
+
+                    imgui::Image::new(self.framebuffer_gui_id, size).build(ui);
+
+                    self.gui_viewport_size = [size[0] as u32, size[1] as u32];
+                }
+            }
 
             scene.gui(ui);
 
@@ -191,7 +213,25 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
+
+        //Scene
         {
+            if self.framebuffer.resize(
+                self.gui_viewport_size[0],
+                self.gui_viewport_size[1],
+                &self.device,
+            ) {
+                self.camera.update_aspect(
+                    &self.queue,
+                    self.gui_viewport_size[0] as f32 / self.gui_viewport_size[1] as f32,
+                );
+                self.gui.update_texture(
+                    self.framebuffer_gui_id,
+                    self.framebuffer.diffuse(),
+                    &self.device,
+                );
+            }
+
             let bundles = self.render_pipeline.draw(
                 scene,
                 &self.device,
@@ -200,6 +240,36 @@ impl Renderer {
                 &[&self.camera.bind_group()],
             );
 
+            let mut scene_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: self.framebuffer.diffuse_view(),
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
+                        store: true,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: self.framebuffer.depth_view(),
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
+            });
+
+            scene_pass.execute_bundles(&bundles);
+        }
+
+        //Main Window
+        {
             // let bundle = self.render_pipeline.draw(
             //     &self.device,
             //     &[self.camera.bind_group()],
@@ -209,7 +279,7 @@ impl Renderer {
             //     0..1,
             // );
 
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut main_window_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -217,8 +287,8 @@ impl Renderer {
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
+                            g: 0.1,
+                            b: 0.1,
                             a: 1.0,
                         }),
                         store: true,
@@ -234,11 +304,10 @@ impl Renderer {
                 }),
             });
 
-            render_pass.execute_bundles(&bundles);
-
             //GUI
             {
-                self.gui.render(&self.queue, &self.device, &mut render_pass);
+                self.gui
+                    .render(&self.queue, &self.device, &mut main_window_pass);
             }
             //GUI
         }

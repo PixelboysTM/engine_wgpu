@@ -1,7 +1,7 @@
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
-use imgui::{ConfigFlags, Direction, FontSource, Io, StyleColor, Ui};
-use imgui_wgpu::{Renderer, RendererConfig};
+use imgui::{ConfigFlags, Direction, FontSource, Io, StyleColor, TextureId, Ui};
+use imgui_wgpu::{RawTextureConfig, Renderer, RendererConfig};
 use imgui_winit_support::winit::window::Window;
 use wgpu::RenderPass;
 use winit::event::Event;
@@ -104,6 +104,47 @@ impl Gui {
 
     pub fn io_mut(&mut self) -> &mut Io {
         self.context.io_mut()
+    }
+
+    pub fn insert_texture(&mut self, device: &wgpu::Device, texture: &Texture) -> TextureId {
+        let tex = imgui_wgpu::Texture::from_raw_parts(
+            device,
+            &self.renderer,
+            texture.texture(),
+            Arc::new(texture.view_new()),
+            None,
+            Some(&RawTextureConfig {
+                label: None,
+                sampler_desc: wgpu::SamplerDescriptor {
+                    ..Default::default()
+                },
+            }),
+            texture.texture().size(),
+        );
+        let id = self.renderer.textures.insert(tex);
+        id
+    }
+    pub fn update_texture(
+        &mut self,
+        texture_id: TextureId,
+        texture: &Texture,
+        device: &wgpu::Device,
+    ) {
+        let tex = imgui_wgpu::Texture::from_raw_parts(
+            device,
+            &self.renderer,
+            texture.texture(),
+            Arc::new(texture.view_new()),
+            None,
+            Some(&RawTextureConfig {
+                label: None,
+                sampler_desc: wgpu::SamplerDescriptor {
+                    ..Default::default()
+                },
+            }),
+            texture.texture().size(),
+        );
+        self.renderer.textures.replace(texture_id, tex);
     }
 }
 
