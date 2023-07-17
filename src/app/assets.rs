@@ -11,6 +11,8 @@ pub(crate) mod uuid {
             .as_millis();
         format!("{}-{:015}", id, time)
     }
+
+    #[allow(dead_code)]
     pub(crate) fn empty() -> Uuid {
         format!("{}-{:015}", uuid::Uuid::nil(), 0u128)
     }

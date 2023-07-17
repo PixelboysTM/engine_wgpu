@@ -1,12 +1,7 @@
-use std::{
-    io::{BufReader, Cursor},
-    ops::Range,
-};
+use std::io::{BufReader, Cursor};
 
 use anyhow::Ok;
 use wgpu::util::DeviceExt;
-
-use crate::app::assets::AssetHandle;
 
 use super::{mesh::MeshVertex, texture::Texture};
 

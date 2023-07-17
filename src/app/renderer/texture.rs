@@ -5,7 +5,7 @@ use super::model::load_binary;
 
 pub struct Texture {
     name: String,
-    texture: wgpu::Texture,
+    _texture: wgpu::Texture,
     view: wgpu::TextureView,
     sampler: wgpu::Sampler,
     bind_group: Option<wgpu::BindGroup>,
@@ -51,7 +51,7 @@ impl Texture {
         });
 
         Self {
-            texture,
+            _texture: texture,
             view,
             sampler,
             bind_group: None,
@@ -123,7 +123,7 @@ impl Texture {
         });
 
         Ok(Self {
-            texture,
+            _texture: texture,
             view,
             sampler,
             bind_group: None,

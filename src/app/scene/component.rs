@@ -122,12 +122,6 @@ impl Component {
             Component::MeshFilter(_) => MeshFilter::IDENT,
         }
     }
-
-    fn inner(&self) -> &impl ComponentPacker {
-        match self {
-            Component::MeshFilter(comp) => comp,
-        }
-    }
     fn pack(self) -> ComponentHandle {
         ComponentHandle {
             inter: Rc::new(RefCell::new(self)),

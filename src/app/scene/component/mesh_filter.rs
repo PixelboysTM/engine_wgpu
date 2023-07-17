@@ -29,6 +29,7 @@ pub struct MeshFilter {
 }
 
 impl PartialEq for MeshFilter {
+    #[allow(unused_variables)]
     fn eq(&self, other: &Self) -> bool {
         false
     }
@@ -44,6 +45,7 @@ impl MeshFilter {
             object: None,
         }
     }
+    #[allow(dead_code)]
     pub fn with_mesh(mesh: AssetHandle<Mesh>) -> MeshFilter {
         MeshFilter {
             mesh: Some(mesh),
@@ -57,13 +59,6 @@ impl MeshFilter {
             material: Some(material),
             object: None,
         }
-    }
-
-    pub fn mesh(&self) -> &Option<AssetHandle<Mesh>> {
-        &self.mesh
-    }
-    pub fn material(&self) -> &Option<Material> {
-        &self.material
     }
 
     pub(super) fn attach(&mut self, object: SceneObject) {

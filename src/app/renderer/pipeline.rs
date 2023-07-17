@@ -1,7 +1,4 @@
-use wgpu::{
-    BindGroupLayout, ColorTargetState, Device, Queue, RenderBundle, RenderBundleEncoder,
-    TextureFormat,
-};
+use wgpu::{BindGroupLayout, ColorTargetState, Device, Queue, RenderBundle, TextureFormat};
 
 use crate::app::scene::{
     component::{Component, MeshFilter, TranslationRaw},
@@ -18,13 +15,11 @@ pub struct Pipeline {
     pub(crate) name: String,
     pub(crate) color_formats: Vec<Option<TextureFormat>>,
     pub(crate) texture_bind_group_layout: wgpu::BindGroupLayout,
-    diffuse_texture: Texture,
 }
 
 impl Pipeline {
     pub fn new(
         device: &Device,
-        queue: &Queue,
         name: &str,
         shader_source: &str,
         color_targets: &[ColorTargetState],
@@ -108,15 +103,10 @@ impl Pipeline {
             multiview: None,
         });
 
-        let diffuse_bytes = include_bytes!("../textures/happy-tree.png");
-        let diffuse_texture =
-            Texture::from_bytes(device, queue, diffuse_bytes, "Happy Tree").unwrap();
-
         Self {
             pipeline: render_pipeline,
             name: name.to_string(),
             color_formats: color_targets.iter().map(|c| Some(c.format)).collect(),
-            diffuse_texture,
             texture_bind_group_layout,
         }
     }
@@ -151,7 +141,6 @@ impl Pipeline {
                         bundles.push(b);
                     }
                 }
-                _ => panic!("Darf nicht sein"),
             }
         }
 

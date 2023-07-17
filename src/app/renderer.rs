@@ -4,7 +4,7 @@ pub(crate) mod model;
 pub mod pipeline;
 pub(crate) mod texture;
 
-use std::{ops::Range, time::Duration};
+use std::time::Duration;
 
 use wgpu::{util::DeviceExt, ColorTargetState, Device, Queue};
 use winit::{dpi::PhysicalSize, event::Event, window::Window};
@@ -12,12 +12,9 @@ use winit::{dpi::PhysicalSize, event::Event, window::Window};
 #[cfg(feature = "imgui")]
 use crate::gui::{init_gui, Gui, GuiPlatform};
 
-use self::{camera::Camera, mesh::Vertex, model::Model, pipeline::Pipeline};
+use self::{camera::Camera, pipeline::Pipeline};
 
-use super::scene::{
-    component::{Component, MeshFilter, Transform},
-    Scene, SceneObject,
-};
+use super::scene::{component::Transform, Scene};
 
 pub struct Renderer {
     surface: wgpu::Surface,
@@ -111,7 +108,6 @@ impl Renderer {
 
         let render_pipeline = Pipeline::new(
             &device,
-            &queue,
             "Main Renderer",
             include_str!("shaders/shader.wgsl"),
             &[ColorTargetState {

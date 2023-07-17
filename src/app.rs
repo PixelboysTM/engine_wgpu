@@ -16,10 +16,7 @@ use crate::app::scene::{component::MeshFilter, SceneObject};
 
 use self::{
     assets::AssetHandle,
-    renderer::{
-        model::{load_model, Model},
-        Renderer,
-    },
+    renderer::{model::load_model, Renderer},
     scene::Scene,
 };
 
@@ -89,7 +86,7 @@ impl ApplicationState {
         obj.add_child(SceneObject::new("Child 4"));
         root.add_child(obj);
 
-        let yml = serde_yaml::to_string(&scene).unwrap();
+        // let yml = serde_yaml::to_string(&scene).unwrap();
         // println!("{}", yml);
 
         Self {
@@ -114,6 +111,7 @@ impl ApplicationState {
         }
     }
 
+    #[allow(unused_variables)]
     pub(super) fn input(&mut self, event: &WindowEvent) -> bool {
         false
     }
