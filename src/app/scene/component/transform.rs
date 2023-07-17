@@ -1,3 +1,4 @@
+use cgmath::{Matrix4, SquareMatrix};
 use imgui::Ui;
 use serde::{Deserialize, Serialize};
 
@@ -31,19 +32,28 @@ impl Transform {
         if open.is_some() {
             ui::text_label(ui, "Position:");
             let mut pos: [f32; 3] = self.position.into();
-            if ui.input_float3("##transform_input_pos", &mut pos).build() {
+            if ui
+                .slider_config("##transform_input_pos", -10.0, 10.0)
+                .build_array(&mut pos)
+            {
                 self.position = pos.into();
             }
 
             ui::text_label(ui, "Rotation:");
             let mut rot: [f32; 3] = self.rotation.into();
-            if ui.input_float3("##transform_input_rot", &mut rot).build() {
+            if ui
+                .slider_config("##transform_input_rot", -180.0, 180.0)
+                .build_array(&mut rot)
+            {
                 self.rotation = rot.into();
             }
 
             ui::text_label(ui, "Size:");
             let mut size: [f32; 3] = self.scale.into();
-            if ui.input_float3("##transform_input_size", &mut size).build() {
+            if ui
+                .slider_config("##transform_input_size", 0.01, 10.0)
+                .build_array(&mut size)
+            {
                 self.scale = size.into();
             }
         }
@@ -57,15 +67,17 @@ impl Default for Transform {
 }
 
 impl Transform {
-    pub(crate) fn to_raw(&self) -> TranslationRaw {
-        TranslationRaw {
-            model: (cgmath::Matrix4::from_translation(self.position)
-                * cgmath::Matrix4::from(cgmath::Quaternion::from(cgmath::Euler::new(
-                    cgmath::Deg(self.rotation.x),
-                    cgmath::Deg(self.rotation.y),
-                    cgmath::Deg(self.rotation.z),
-                )))
-                * cgmath::Matrix4::from_nonuniform_scale(self.scale.x, self.scale.y, self.scale.z))
+    pub(crate) fn to_raw(&self) -> TransformRaw {
+        TransformRaw {
+            model: (cgmath::Matrix4::from_nonuniform_scale(
+                self.scale.x,
+                self.scale.y,
+                self.scale.z,
+            ) * cgmath::Matrix4::from(cgmath::Quaternion::from(cgmath::Euler::new(
+                cgmath::Deg(self.rotation.x),
+                cgmath::Deg(self.rotation.y),
+                cgmath::Deg(self.rotation.z),
+            ))) * cgmath::Matrix4::from_translation(self.position))
             .into(),
         }
     }
@@ -73,15 +85,15 @@ impl Transform {
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct TranslationRaw {
+pub struct TransformRaw {
     pub(crate) model: [[f32; 4]; 4],
 }
 
-impl Vertex for TranslationRaw {
+impl Vertex for TransformRaw {
     fn desc() -> wgpu::VertexBufferLayout<'static> {
         use std::mem;
         wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<TranslationRaw>() as wgpu::BufferAddress,
+            array_stride: mem::size_of::<TransformRaw>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -106,5 +118,28 @@ impl Vertex for TranslationRaw {
                 },
             ],
         }
+    }
+}
+
+pub struct TransformStack {
+    stack: Vec<Matrix4<f32>>,
+}
+
+impl TransformStack {
+    pub fn new() -> Self {
+        Self { stack: vec![] }
+    }
+    pub fn push(&mut self, transform: TransformRaw) {
+        self.stack.push(Matrix4::from(transform.model));
+    }
+    pub fn pop(&mut self) -> Option<TransformRaw> {
+        self.stack.pop().map(|f| TransformRaw { model: f.into() })
+    }
+    pub fn eval(&self) -> TransformRaw {
+        let mat = self
+            .stack
+            .iter()
+            .fold(Matrix4::identity(), |acc, mat| acc * mat);
+        TransformRaw { model: mat.into() }
     }
 }

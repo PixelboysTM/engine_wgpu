@@ -1,7 +1,7 @@
 use wgpu::{BindGroupLayout, ColorTargetState, Device, Queue, RenderBundle, TextureFormat};
 
 use crate::app::scene::{
-    component::{Component, MeshFilter, TranslationRaw},
+    component::{Component, MeshFilter, TransformRaw, TransformStack},
     Scene, SceneObject,
 };
 
@@ -69,7 +69,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[MeshVertex::desc(), TranslationRaw::desc()],
+                buffers: &[MeshVertex::desc(), TransformRaw::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -119,7 +119,15 @@ impl Pipeline {
         instance_buffer: &wgpu::Buffer,
         bind_groups: &[&wgpu::BindGroup],
     ) -> Vec<RenderBundle> {
-        self.render_scene_obj(scene.root(), device, queue, bind_groups, instance_buffer)
+        let mut transform_stack = TransformStack::new();
+        self.render_scene_obj(
+            scene.root(),
+            device,
+            queue,
+            bind_groups,
+            instance_buffer,
+            &mut transform_stack,
+        )
     }
 
     fn render_scene_obj(
@@ -129,14 +137,24 @@ impl Pipeline {
         queue: &Queue,
         bind_groups: &[&wgpu::BindGroup],
         instance_buffer: &wgpu::Buffer,
+        transform_stack: &mut TransformStack,
     ) -> Vec<RenderBundle> {
+        transform_stack.push(obj.get_transform().to_raw());
+
         let mut bundles = vec![];
         let mf = obj.get_component(MeshFilter::IDENT);
         if let Some(mesh_filter) = mf {
             let mfc: &mut Component = &mut mesh_filter.get().borrow_mut();
             match mfc {
                 Component::MeshFilter(filter) => {
-                    let b = filter.render(self, device, bind_groups, instance_buffer, queue);
+                    let b = filter.render(
+                        self,
+                        device,
+                        bind_groups,
+                        instance_buffer,
+                        queue,
+                        transform_stack,
+                    );
                     if let Some(b) = b {
                         bundles.push(b);
                     }
@@ -151,8 +169,11 @@ impl Pipeline {
                 queue,
                 bind_groups,
                 instance_buffer,
+                transform_stack,
             ));
         }
+
+        transform_stack.pop();
 
         bundles
     }

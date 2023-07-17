@@ -15,7 +15,7 @@ use crate::{
     gui::ui,
 };
 
-use super::{ComponentIdentifier, ComponentPacker};
+use super::{ComponentIdentifier, ComponentPacker, TransformStack};
 
 #[derive(Serialize, Deserialize)]
 pub struct MeshFilter {
@@ -105,6 +105,7 @@ impl MeshFilter {
         bind_groups: &[&wgpu::BindGroup],
         instance_buffer: &wgpu::Buffer,
         queue: &wgpu::Queue,
+        transform_stack: &mut TransformStack,
     ) -> Option<RenderBundle> {
         if let Some(mesh) = &self.mesh {
             let mut encoder =
@@ -130,12 +131,7 @@ impl MeshFilter {
             queue.write_buffer(
                 instance_buffer,
                 0,
-                bytemuck::cast_slice(&[self
-                    .object
-                    .as_ref()
-                    .expect("Why not attached")
-                    .get_transform()
-                    .to_raw()]),
+                bytemuck::cast_slice(&[transform_stack.eval()]),
             );
             encoder.set_vertex_buffer(1, instance_buffer.slice(..));
             // encoder.draw_mesh_instanced(
