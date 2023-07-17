@@ -1,5 +1,5 @@
 use cgmath::{Matrix4, SquareMatrix};
-use imgui::Ui;
+use imgui::{Drag, Ui};
 use serde::{Deserialize, Serialize};
 
 use crate::{app::renderer::mesh::Vertex, gui::ui};
@@ -32,28 +32,19 @@ impl Transform {
         if open.is_some() {
             ui::text_label(ui, "Position:");
             let mut pos: [f32; 3] = self.position.into();
-            if ui
-                .slider_config("##transform_input_pos", -10.0, 10.0)
-                .build_array(&mut pos)
-            {
+            if Drag::new("##transform_input_pos").build_array(ui, &mut pos) {
                 self.position = pos.into();
             }
 
             ui::text_label(ui, "Rotation:");
             let mut rot: [f32; 3] = self.rotation.into();
-            if ui
-                .slider_config("##transform_input_rot", -180.0, 180.0)
-                .build_array(&mut rot)
-            {
+            if Drag::new("##transform_input_rot").build_array(ui, &mut rot) {
                 self.rotation = rot.into();
             }
 
             ui::text_label(ui, "Size:");
             let mut size: [f32; 3] = self.scale.into();
-            if ui
-                .slider_config("##transform_input_size", 0.01, 10.0)
-                .build_array(&mut size)
-            {
+            if Drag::new("##transform_input_size").build_array(ui, &mut size) {
                 self.scale = size.into();
             }
         }
