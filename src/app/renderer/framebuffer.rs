@@ -46,15 +46,18 @@ impl Framebuffer {
     pub fn depth_view(&self) -> &wgpu::TextureView {
         self.depth.view()
     }
+    #[allow(dead_code)]
     pub fn depth(&self) -> &Texture {
         &self.depth
     }
     pub fn diffuse(&self) -> &Texture {
         &self.diffuse
     }
+    #[allow(dead_code)]
     pub fn width(&self) -> u32 {
         self.width
     }
+    #[allow(dead_code)]
     pub fn height(&self) -> u32 {
         self.height
     }

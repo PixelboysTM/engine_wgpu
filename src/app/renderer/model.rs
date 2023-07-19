@@ -3,16 +3,18 @@ use std::io::{BufReader, Cursor};
 use anyhow::Ok;
 use wgpu::util::DeviceExt;
 
+use crate::app::assets::{AssetDatabase, AssetHandle, AssetLocation};
+
 use super::{mesh::MeshVertex, texture::Texture};
 
 pub struct Model {
-    pub meshes: Vec<Mesh>,
-    pub materials: Vec<Material>,
+    pub meshes: Vec<AssetHandle<Mesh>>,
+    pub materials: Vec<AssetHandle<Material>>,
 }
 
 pub struct Material {
     pub name: String,
-    pub diffuse_texture: Texture,
+    pub diffuse_texture: AssetHandle<Texture>,
 }
 
 pub struct Mesh {
@@ -81,6 +83,7 @@ pub async fn load_model(
     file_name: &str,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    asset_databse: AssetDatabase,
 ) -> anyhow::Result<Model> {
     let obj_text = load_string(file_name).await?;
     let obj_cursor = Cursor::new(obj_text);
@@ -102,12 +105,27 @@ pub async fn load_model(
 
     let mut materials = Vec::new();
     for m in obj_materials? {
-        let diffuse_texture =
-            Texture::load_texture(&m.diffuse_texture.unwrap(), device, queue).await?;
-        materials.push(Material {
+        let tex_name = m.diffuse_texture.unwrap();
+
+        let diffuse_texture = Texture::load_texture(&tex_name, device, queue).await?;
+
+        let tex = asset_databse.load_texture(
+            AssetLocation::Resource {
+                path: tex_name,
+                in_file_ident: None,
+            },
             diffuse_texture,
-            name: m.name,
-        });
+        );
+        materials.push(asset_databse.load_material(
+            AssetLocation::Resource {
+                path: file_name.to_string(),
+                in_file_ident: Some(m.name.clone()),
+            },
+            Material {
+                diffuse_texture: tex,
+                name: m.name,
+            },
+        ));
     }
 
     let meshes = models
@@ -140,13 +158,19 @@ pub async fn load_model(
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-            Mesh {
-                name: file_name.to_string(),
-                vertex_buffer,
-                index_buffer,
-                num_elements: m.mesh.indices.len() as u32,
-                material: m.mesh.material_id.unwrap_or(0),
-            }
+            asset_databse.load_mesh(
+                AssetLocation::Resource {
+                    path: file_name.to_string(),
+                    in_file_ident: Some(m.name),
+                },
+                Mesh {
+                    name: file_name.to_string(),
+                    vertex_buffer,
+                    index_buffer,
+                    num_elements: m.mesh.indices.len() as u32,
+                    material: m.mesh.material_id.unwrap_or(0),
+                },
+            )
         })
         .collect::<Vec<_>>();
 

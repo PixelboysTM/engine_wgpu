@@ -15,7 +15,7 @@ pub(crate) use renderer::texture::*;
 use crate::app::scene::{component::MeshFilter, SceneObject};
 
 use self::{
-    assets::AssetHandle,
+    assets::{AssetDatabase, AssetHandle},
     renderer::{model::load_model, Renderer},
     scene::Scene,
 };
@@ -25,6 +25,7 @@ pub struct ApplicationState {
     size: winit::dpi::PhysicalSize<u32>,
     window: Window,
     scene: Scene,
+    asset_db: AssetDatabase,
     // obj_model: Model,
 }
 
@@ -33,10 +34,16 @@ impl ApplicationState {
         let size = window.inner_size();
 
         let renderer = Renderer::new(&window, size).await;
+        let asset_db = AssetDatabase::new();
 
-        let mut obj_model = load_model("cube.obj", renderer.device(), renderer.queue())
-            .await
-            .unwrap();
+        let mut obj_model = load_model(
+            "cube.obj",
+            renderer.device(),
+            renderer.queue(),
+            asset_db.clone(),
+        )
+        .await
+        .unwrap();
 
         // const SPACE_BETWEEN: f32 = 3.0;
         // let instances = (0..NUM_INSTANCES_PER_ROW)
@@ -76,10 +83,8 @@ impl ApplicationState {
         obj2.add_child(SceneObject::new("Subchild 3"));
 
         obj2.add_component(MeshFilter::with_material(
-            AssetHandle {
-                asset: Rc::new(RefCell::new(obj_model.meshes.pop().unwrap())),
-            },
-            obj_model.materials.pop().unwrap(),
+            obj_model.meshes[0].clone(),
+            obj_model.materials[0].clone(),
         ));
         obj.add_child(obj2);
         obj.add_child(SceneObject::new("Child 3"));
@@ -97,6 +102,7 @@ impl ApplicationState {
             // instances,
             // instance_buffer,
             scene,
+            asset_db,
         }
     }
 

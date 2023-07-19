@@ -22,7 +22,7 @@ pub struct MeshFilter {
     #[serde(skip)] // until asset handle implenetation
     mesh: Option<AssetHandle<Mesh>>,
     #[serde(skip)] // until asset handle implenetation
-    material: Option<Material>,
+    material: Option<AssetHandle<Material>>,
 
     #[serde(skip)]
     object: Option<SceneObject>,
@@ -53,7 +53,7 @@ impl MeshFilter {
             object: None,
         }
     }
-    pub fn with_material(mesh: AssetHandle<Mesh>, material: Material) -> MeshFilter {
+    pub fn with_material(mesh: AssetHandle<Mesh>, material: AssetHandle<Material>) -> MeshFilter {
         MeshFilter {
             mesh: Some(mesh),
             material: Some(material),
@@ -77,10 +77,14 @@ impl MeshFilter {
             ui.text(
                 self.mesh
                     .as_ref()
-                    .map_or("None".to_string(), |f| f.asset.borrow().name.clone()),
+                    .map_or("None".to_string(), |f| f.location.to_ident()),
             );
             ui::text_label(ui, "Material:");
-            ui.text(self.material.as_ref().map_or("None", |f| &f.name));
+            ui.text(
+                self.material
+                    .as_ref()
+                    .map_or("None".to_string(), |f| f.location.to_ident()),
+            );
         }
     }
 }
@@ -146,13 +150,13 @@ impl MeshFilter {
 
             encoder.set_vertex_buffer(0, m.vertex_buffer.slice(..));
             encoder.set_index_buffer(m.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+            let material = self.material.as_ref().unwrap().asset.borrow();
+            let mut diffuse = material.diffuse_texture.asset.borrow_mut();
+
             encoder.set_bind_group(
                 0,
-                self.material
-                    .as_mut()
-                    .unwrap()
-                    .diffuse_texture
-                    .bind_group(device, &pipeline.texture_bind_group_layout),
+                diffuse.bind_group(device, &pipeline.texture_bind_group_layout),
                 &[],
             );
             encoder.draw_indexed(0..mesh.asset.borrow().num_elements, 0, 0..1);
