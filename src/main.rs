@@ -43,7 +43,7 @@ async fn run() {
 
     let mut state = ApplicationState::new(window).await;
 
-    tree();
+    // tree();
 
     let mut last_frame = Instant::now();
 
@@ -105,15 +105,15 @@ fn make_icon(bytes: &[u8]) -> Icon {
     Icon::from_rgba(img.to_rgba8().to_vec(), img.width(), img.height()).unwrap()
 }
 
-fn tree() {
-    let mut root = TreeNode::new("Root");
-    root.add_child(TreeNode::new("Child1"));
-    root.add_child(TreeNode::new("Child2"));
-    root.add_child(TreeNode::new("Child3"));
-    let mut child4 = TreeNode::new("Child4");
-    root.add_child(child4.clone());
-    child4.add_child(TreeNode::new("Child4.1"));
-    child4.add_child(TreeNode::new("Child4.2"));
+// fn tree() {
+//     let mut root = TreeNode::new("Root");
+//     root.add_child(TreeNode::new("Child1"));
+//     root.add_child(TreeNode::new("Child2"));
+//     root.add_child(TreeNode::new("Child3"));
+//     let mut child4 = TreeNode::new("Child4");
+//     root.add_child(child4.clone());
+//     child4.add_child(TreeNode::new("Child4.1"));
+//     child4.add_child(TreeNode::new("Child4.2"));
 
-    println!("Tree: {}", root.print());
-}
+//     println!("Tree: {}", root.print());
+// }

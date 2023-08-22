@@ -32,19 +32,28 @@ impl Transform {
         if open.is_some() {
             ui::text_label(ui, "Position:");
             let mut pos: [f32; 3] = self.position.into();
-            if Drag::new("##transform_input_pos").build_array(ui, &mut pos) {
+            if Drag::new("##transform_input_pos")
+                .speed(0.1)
+                .build_array(ui, &mut pos)
+            {
                 self.position = pos.into();
             }
 
             ui::text_label(ui, "Rotation:");
             let mut rot: [f32; 3] = self.rotation.into();
-            if Drag::new("##transform_input_rot").build_array(ui, &mut rot) {
+            if Drag::new("##transform_input_rot")
+                .speed(0.1)
+                .build_array(ui, &mut rot)
+            {
                 self.rotation = rot.into();
             }
 
             ui::text_label(ui, "Size:");
             let mut size: [f32; 3] = self.scale.into();
-            if Drag::new("##transform_input_size").build_array(ui, &mut size) {
+            if Drag::new("##transform_input_size")
+                .speed(0.1)
+                .build_array(ui, &mut size)
+            {
                 self.scale = size.into();
             }
         }

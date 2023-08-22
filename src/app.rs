@@ -2,7 +2,7 @@ pub(crate) mod assets;
 mod renderer;
 mod scene;
 
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::time::Duration;
 
 use winit::{
     dpi::PhysicalSize,
@@ -15,7 +15,7 @@ pub(crate) use renderer::texture::*;
 use crate::app::scene::{component::MeshFilter, SceneObject};
 
 use self::{
-    assets::{AssetDatabase, AssetHandle},
+    assets::{AssetDatabase, AssetLocation},
     renderer::{model::load_model, Renderer},
     scene::Scene,
 };
@@ -36,7 +36,7 @@ impl ApplicationState {
         let renderer = Renderer::new(&window, size).await;
         let asset_db = AssetDatabase::new();
 
-        let mut obj_model = load_model(
+        let obj_model = load_model(
             "cube.obj",
             renderer.device(),
             renderer.queue(),
@@ -44,6 +44,11 @@ impl ApplicationState {
         )
         .await
         .unwrap();
+        let model_loc = AssetLocation::Resource {
+            path: "cube.json".to_owned(),
+            in_file_ident: None,
+        };
+        let obj_model = asset_db.load_model(model_loc, obj_model);
 
         // const SPACE_BETWEEN: f32 = 3.0;
         // let instances = (0..NUM_INSTANCES_PER_ROW)
@@ -72,6 +77,10 @@ impl ApplicationState {
 
         let scene = Scene::new("Test Scene");
         let root = scene.root();
+        root.add_component(MeshFilter::with_material(
+            obj_model.asset().meshes[0].clone(),
+            obj_model.asset().materials[0].clone(),
+        ));
         root.add_child(SceneObject::new("SceneObject 1"));
         root.add_child(SceneObject::new("SceneObject 2"));
         root.add_child(SceneObject::new("SceneObject 3"));
@@ -83,8 +92,8 @@ impl ApplicationState {
         obj2.add_child(SceneObject::new("Subchild 3"));
 
         obj2.add_component(MeshFilter::with_material(
-            obj_model.meshes[0].clone(),
-            obj_model.materials[0].clone(),
+            obj_model.asset().meshes[0].clone(),
+            obj_model.asset().materials[0].clone(),
         ));
         obj.add_child(obj2);
         obj.add_child(SceneObject::new("Child 3"));

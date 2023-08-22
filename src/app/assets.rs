@@ -1,7 +1,12 @@
-use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
+    fmt::Debug,
+    rc::Rc,
+};
 
 use super::{
-    renderer::model::{Material, Mesh},
+    renderer::model::{Material, Mesh, Model},
     Texture,
 };
 
@@ -14,6 +19,7 @@ pub struct AssetDatabase {
 asset_type!(Mesh, mesh, meshes, load_mesh);
 asset_type!(Texture, texture, textures, load_texture);
 asset_type!(Material, material, materials, load_material);
+asset_type!(Model, model, models, load_model);
 
 impl AssetDatabase {
     pub fn new() -> Self {
@@ -22,6 +28,7 @@ impl AssetDatabase {
                 textures: HashMap::new(),
                 meshes: HashMap::new(),
                 materials: HashMap::new(),
+                models: HashMap::new(),
             })),
         }
     }
@@ -39,6 +46,7 @@ struct InterDatabase {
     textures: HashMap<AssetLocation, AssetHandle<Texture>>,
     meshes: HashMap<AssetLocation, AssetHandle<Mesh>>,
     materials: HashMap<AssetLocation, AssetHandle<Material>>,
+    models: HashMap<AssetLocation, AssetHandle<Model>>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -103,6 +111,15 @@ impl<T> Clone for AssetHandle<T> {
             location: self.location.clone(),
             asset: Rc::clone(&self.asset),
         }
+    }
+}
+
+impl<T> AssetHandle<T> {
+    pub fn asset(&self) -> Ref<'_, T> {
+        self.asset.borrow()
+    }
+    pub fn asset_mut(&self) -> RefMut<'_, T> {
+        self.asset.borrow_mut()
     }
 }
 
