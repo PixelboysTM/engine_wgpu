@@ -116,7 +116,6 @@ impl Pipeline {
         scene: &Scene,
         device: &Device,
         queue: &Queue,
-        instance_buffer: &wgpu::Buffer,
         bind_groups: &[&wgpu::BindGroup],
     ) -> Vec<RenderBundle> {
         let mut transform_stack = TransformStack::new();
@@ -125,7 +124,6 @@ impl Pipeline {
             device,
             queue,
             bind_groups,
-            instance_buffer,
             &mut transform_stack,
         )
     }
@@ -136,7 +134,6 @@ impl Pipeline {
         device: &Device,
         queue: &Queue,
         bind_groups: &[&wgpu::BindGroup],
-        instance_buffer: &wgpu::Buffer,
         transform_stack: &mut TransformStack,
     ) -> Vec<RenderBundle> {
         transform_stack.push(obj.get_transform().to_raw());
@@ -147,14 +144,7 @@ impl Pipeline {
             let mfc: &mut Component = &mut mesh_filter.get().borrow_mut();
             match mfc {
                 Component::MeshFilter(filter) => {
-                    let b = filter.render(
-                        self,
-                        device,
-                        bind_groups,
-                        instance_buffer,
-                        queue,
-                        transform_stack,
-                    );
+                    let b = filter.render(self, device, bind_groups, queue, transform_stack);
                     if let Some(b) = b {
                         bundles.push(b);
                     }
@@ -168,7 +158,6 @@ impl Pipeline {
                 device,
                 queue,
                 bind_groups,
-                instance_buffer,
                 transform_stack,
             ));
         }

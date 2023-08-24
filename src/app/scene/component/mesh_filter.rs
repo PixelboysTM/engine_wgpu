@@ -1,6 +1,6 @@
 use imgui::Ui;
 use serde::{Deserialize, Serialize};
-use wgpu::RenderBundle;
+use wgpu::{util::DeviceExt, Device, RenderBundle};
 
 use crate::{
     app::{
@@ -15,7 +15,7 @@ use crate::{
     gui::ui,
 };
 
-use super::{ComponentIdentifier, ComponentPacker, TransformStack};
+use super::{ComponentIdentifier, ComponentPacker, Transform, TransformStack};
 
 #[derive(Serialize, Deserialize)]
 pub struct MeshFilter {
@@ -26,6 +26,9 @@ pub struct MeshFilter {
 
     #[serde(skip)]
     object: Option<SceneObject>,
+
+    #[serde(skip)]
+    instance_buffer: Option<wgpu::Buffer>,
 }
 
 impl PartialEq for MeshFilter {
@@ -43,6 +46,7 @@ impl MeshFilter {
             mesh: None,
             material: None,
             object: None,
+            instance_buffer: None,
         }
     }
     #[allow(dead_code)]
@@ -51,6 +55,7 @@ impl MeshFilter {
             mesh: Some(mesh),
             material: None,
             object: None,
+            instance_buffer: None,
         }
     }
     pub fn with_material(mesh: AssetHandle<Mesh>, material: AssetHandle<Material>) -> MeshFilter {
@@ -58,7 +63,16 @@ impl MeshFilter {
             mesh: Some(mesh),
             material: Some(material),
             object: None,
+            instance_buffer: None,
         }
+    }
+
+    fn create_default_instance_buffer(device: &Device) -> wgpu::Buffer {
+        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Instance Buffer"),
+            contents: bytemuck::cast_slice(&[Transform::new().to_raw()]),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        })
     }
 
     pub(super) fn attach(&mut self, object: SceneObject) {
@@ -107,10 +121,10 @@ impl MeshFilter {
         pipeline: &Pipeline,
         device: &wgpu::Device,
         bind_groups: &[&wgpu::BindGroup],
-        instance_buffer: &wgpu::Buffer,
         queue: &wgpu::Queue,
         transform_stack: &mut TransformStack,
     ) -> Option<RenderBundle> {
+        //TODO: Track changes and save recorded bundle
         if let Some(mesh) = &self.mesh {
             let mut encoder =
                 device.create_render_bundle_encoder(&wgpu::RenderBundleEncoderDescriptor {
@@ -132,12 +146,20 @@ impl MeshFilter {
                 encoder.set_bind_group(i as u32 + 1, &group, &[]);
             }
 
+            if self.instance_buffer.is_none() {
+                self.instance_buffer = Some(Self::create_default_instance_buffer(device));
+            }
+            let instance_buffer = self
+                .instance_buffer
+                .as_ref()
+                .expect("Should have been build before!");
             queue.write_buffer(
                 instance_buffer,
                 0,
-                bytemuck::cast_slice(&[transform_stack.eval()]),
+                bytemuck::cast_slice(&[transform_stack.eval()]), //TODO: Cash hash or something to prevent reupload every frame
             );
             encoder.set_vertex_buffer(1, instance_buffer.slice(..));
+
             // encoder.draw_mesh_instanced(
             //     device,
             //     &pipeline.texture_bind_group_layout,
