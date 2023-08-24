@@ -13,8 +13,8 @@ use winit::{
     window::{Icon, WindowBuilder},
 };
 
-const ICON_DATA: &'static [u8] = include_bytes!("icon.png");
-const ICON_DATA_BIG: &'static [u8] = include_bytes!("icon_big.png");
+const ICON_DATA: &'static [u8] = include_bytes!("engine_icon.png");
+const ICON_DATA_BIG: &'static [u8] = include_bytes!("engine_icon.png");
 
 fn main() {
     env_logger::init();
@@ -34,7 +34,7 @@ async fn run() {
         .with_inner_size(PhysicalSize::new(800, 600))
         .with_resizable(true)
         .with_theme(Some(winit::window::Theme::Dark))
-        .with_title("Moinchen")
+        .with_title("Engine WGPU")
         .with_window_icon(Some(make_icon(ICON_DATA)))
         .with_taskbar_icon(Some(make_icon(ICON_DATA_BIG)))
         .build(&event_loop)

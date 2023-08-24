@@ -18,6 +18,8 @@ use self::{camera::Camera, framebuffer::Framebuffer, pipeline::Pipeline};
 
 use super::scene::{component::Transform, Scene};
 
+const VSYNC: bool = true;
+
 pub struct Renderer {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -29,7 +31,6 @@ pub struct Renderer {
     framebuffer_gui_id: TextureId,
     gui_viewport_size: [u32; 2],
     depth_texture: texture::Texture,
-    instance_buffer: wgpu::Buffer,
     #[cfg(feature = "imgui")]
     gui: Gui,
     gui_platform: GuiPlatform,
@@ -78,7 +79,11 @@ impl Renderer {
             format: surface_format,
             width: size.width,
             height: size.height,
-            present_mode: surface_caps.present_modes[0],
+            present_mode: if !VSYNC {
+                wgpu::PresentMode::AutoNoVsync
+            } else {
+                surface_caps.present_modes[0]
+            }, //V-SYNC
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
         };
@@ -127,13 +132,6 @@ impl Renderer {
             texture::Texture::create_depth_texture(&device, &config, "depth_texture");
         let framebuffer = Framebuffer::create(&device, 800, 600, config.format, "Main");
 
-        let instance_data = [Transform::new().to_raw()];
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&instance_data),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
-
         #[cfg(feature = "imgui")]
         let (mut gui, gui_platform) = init_gui(window, &config.format, &device, &queue);
         let framebuffer_gui_id = gui.insert_texture(&device, framebuffer.diffuse());
@@ -149,7 +147,6 @@ impl Renderer {
             framebuffer,
             framebuffer_gui_id,
             depth_texture,
-            instance_buffer,
             #[cfg(feature = "imgui")]
             gui,
             #[cfg(feature = "imgui")]
@@ -236,12 +233,11 @@ impl Renderer {
                 scene,
                 &self.device,
                 &self.queue,
-                &self.instance_buffer,
                 &[&self.camera.bind_group()],
             );
 
             let mut scene_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Scene Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: self.framebuffer.diffuse_view(),
                     resolve_target: None,
@@ -280,7 +276,7 @@ impl Renderer {
             // );
 
             let mut main_window_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Main Window Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
