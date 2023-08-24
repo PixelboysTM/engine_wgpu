@@ -5,7 +5,6 @@ mod tree;
 use std::time::Instant;
 
 use app::ApplicationState;
-use tree::TreeNode;
 use winit::{
     dpi::PhysicalSize,
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},

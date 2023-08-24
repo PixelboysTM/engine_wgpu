@@ -111,7 +111,7 @@ impl Pipeline {
         }
     }
 
-    pub(super) fn draw(
+    pub(super) fn render_scene(
         &mut self,
         scene: &Scene,
         device: &Device,

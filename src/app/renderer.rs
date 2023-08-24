@@ -232,7 +232,7 @@ impl Renderer {
                 );
             }
 
-            let bundles = self.render_pipeline.draw(
+            let bundles = self.render_pipeline.render_scene(
                 scene,
                 &self.device,
                 &self.queue,
